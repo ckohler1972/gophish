@@ -19,6 +19,7 @@ type Group struct {
 	Name         string    `json:"name"`
 	ModifiedDate time.Time `json:"modified_date"`
 	Targets      []Target  `json:"targets" sql:"-"`
+	//Status		 string
 }
 
 // GroupSummaries is a struct representing the overview of Groups.
@@ -191,9 +192,10 @@ func GetGroupByName(n string, uid int64) (Group, error) {
 }
 
 // PostGroup creates a new group in the database.
-func PostGroup(g *Group) error {
+func PostGroup(g *Group) {
 	if err := g.Validate(); err != nil {
-		return err
+		//return err
+		log.Error(err)
 	}
 	// Insert the group into the DB
 	tx := db.Begin()
@@ -201,23 +203,31 @@ func PostGroup(g *Group) error {
 	if err != nil {
 		tx.Rollback()
 		log.Error(err)
-		return err
+		//return err
 	}
+	err = tx.Commit().Error
+	if err != nil {
+		log.Error(err)
+		tx.Rollback()
+		//return err
+	}
+
+	tx = db.Begin()
 	for _, t := range g.Targets {
 		err = insertTargetIntoGroup(tx, t, g.Id)
 		if err != nil {
 			tx.Rollback()
 			log.Error(err)
-			return err
+			//return err
 		}
 	}
 	err = tx.Commit().Error
 	if err != nil {
 		log.Error(err)
 		tx.Rollback()
-		return err
+		//return err
 	}
-	return nil
+	//return nil
 }
 
 // PutGroup updates the given group if found in the database.
@@ -320,6 +330,7 @@ func insertTargetIntoGroup(tx *gorm.DB, t Target, gid int64) error {
 		}).Error("Invalid email")
 		return err
 	}
+	trans := db.Begin()
 	err := tx.Where(t).FirstOrCreate(&t).Error
 	if err != nil {
 		log.WithFields(logrus.Fields{
@@ -327,7 +338,7 @@ func insertTargetIntoGroup(tx *gorm.DB, t Target, gid int64) error {
 		}).Error(err)
 		return err
 	}
-	err = tx.Where("group_id=? and target_id=?", gid, t.Id).Find(&GroupTarget{}).Error
+	err = trans.Where("group_id=? and target_id=?", gid, t.Id).Find(&GroupTarget{}).Error
 	if err == gorm.ErrRecordNotFound {
 		err = tx.Save(&GroupTarget{GroupId: gid, TargetId: t.Id}).Error
 		if err != nil {

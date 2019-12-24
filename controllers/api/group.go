@@ -40,11 +40,14 @@ func (as *Server) Groups(w http.ResponseWriter, r *http.Request) {
 		}
 		g.ModifiedDate = time.Now().UTC()
 		g.UserId = ctx.Get(r, "user_id").(int64)
-		err = models.PostGroup(&g)
-		if err != nil {
-			JSONResponse(w, models.Response{Success: false, Message: err.Error()}, http.StatusBadRequest)
-			return
-		}
+		go models.PostGroup(&g)
+
+		// TODO need to update error handling throughout
+		//if err != nil {
+		//	log.Error("ya done goofed")
+		//	JSONResponse(w, models.Response{Success: false, Message: err.Error()}, http.StatusBadRequest)
+		//	return
+		//}
 		JSONResponse(w, g, http.StatusCreated)
 	}
 }
